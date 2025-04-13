@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <time.h>
 
 #define USERNAME_SIZE 50
 #define CLUE_SIZE 256
@@ -27,7 +28,22 @@ void printTreasure(Treasure *t) {
     printf("Coordinates: latitude=%.2f longitude=%.2f\n", t->latitude, t->longitude);
     printf("Value: %d\n", t->value);
     printf("Clue: %s\n", t->clue);
-    printf("----------------------------\n");
+    printf("-----------------------------------\n");
+}
+
+// log activity
+void addLog(const char *huntID, const char *message) {
+    char logPath[PATH_SIZE];
+    snprintf(logPath, sizeof(logPath), "%s/logged_hunt.log", huntID);
+
+    FILE *logFile = fopen(logPath, "a");
+    if (!logFile) {
+        perror("Could not open log file");
+        return;
+    }
+
+    fprintf(logFile, "%s\n", message);
+    fclose(logFile);
 }
 
 int addTreasure(Treasure *t, const char *huntID) {
@@ -42,7 +58,7 @@ int addTreasure(Treasure *t, const char *huntID) {
 
     int fd = open(treasureFile, O_WRONLY | O_CREAT | O_APPEND, 0777);
     if (fd == -1) {
-        perror("open treasureFile");
+        perror("Error while opening the treasure File!\n");
         return 0;
     }
 
@@ -75,33 +91,22 @@ int addTreasure(Treasure *t, const char *huntID) {
     }
 
     close(fd);
-    printf("Treasure added successfully.\n");
+    printf("Treasure added successfully!\n");
 
-    // symlink for hunt_notes
-    char fullPath[PATH_SIZE], symlinkPath[PATH_SIZE];
-    if (snprintf(fullPath, sizeof(fullPath), "%s/hunt_notes", huntID) >= sizeof(fullPath)) {
-        perror("fullPath overflow\n");
-        return 0;
-    }
 
-    if (snprintf(symlinkPath, sizeof(symlinkPath), "%s/hunt_notes-%s", huntID, huntID) >= sizeof(symlinkPath)) {
-        perror("symlinkPath overflow\n");
-        return 0;
-    }
+    // call log function
+    char logEntry[PATH_SIZE];
+    snprintf(logEntry, sizeof(logEntry), "Added treasure with the ID %d in the hunt (ID : %s) by user %s", t->id, huntID, t->username);
+    addLog(huntID, logEntry);
 
-#ifndef _WIN32
-    unlink(symlinkPath); // Remove any previous symlink
-    if (symlink(fullPath, symlinkPath) == -1) {
-        perror("Failed to create symbolic link");
-    }
-#else
-    printf("Symbolic links are not supported on this platform.\n");
-#endif
 
     return 1;
 }
 
 void viewTreasure(const char *huntID, int id) {
+
+  // verification if the hunt file exists and if the treasure (with the treasure id) belongs to the specified hunt
+  
     char treasureFile[PATH_SIZE];
     snprintf(treasureFile, sizeof(treasureFile), "%s/%s_treasures.dat", huntID, huntID);
 
@@ -114,13 +119,20 @@ void viewTreasure(const char *huntID, int id) {
     Treasure t;
     while (read(fd, &t, sizeof(Treasure)) == sizeof(Treasure)) {
         if (t.id == id) {
-            printTreasure(&t);
-            close(fd);
-            return;
+
+	  // call log function
+	  char logEntry[PATH_SIZE];
+	  snprintf(logEntry, sizeof(logEntry), "Viewed treasure ID %d from hunt %s", id, huntID);
+	  addLog(huntID, logEntry);
+
+	  printTreasure(&t);
+	  close(fd);
+	  return;
         }
     }
 
     printf("Treasure with the following id: %d is not found!\n", id);
+
     close(fd);
 }
 
@@ -128,9 +140,20 @@ void listTreasures(const char *huntID) {
     char treasureFile[PATH_SIZE];
     snprintf(treasureFile, sizeof(treasureFile), "%s/%s_treasures.dat", huntID, huntID);
 
+    // Get file metadata
+    struct stat fileStat;
+    if (stat(treasureFile, &fileStat) == -1) {
+        perror("Error retrieving treasure file info");
+        return;
+    }
+
+    printf("Hunt: %s\n", huntID);
+    printf("File size: %ld bytes\n", fileStat.st_size);
+    printf("Last modified: %s\n", ctime(&fileStat.st_mtime));  // ctime adds \n automatically
+
     int fd = open(treasureFile, O_RDONLY);
     if (fd == -1) {
-        perror("open");
+        perror("Error while opening the treasure file");
         return;
     }
 
@@ -143,10 +166,16 @@ void listTreasures(const char *huntID) {
 
     if (!found) {
         printf("No treasures found in the following hunt %s!\n", huntID);
+    } else {
+        // call log function
+        char logEntry[PATH_SIZE];
+        snprintf(logEntry, sizeof(logEntry), "Listed all the treasures from the hunt (ID : %s)", huntID);
+        addLog(huntID, logEntry);
     }
 
     close(fd);
 }
+
 
 void removeTreasure(const char *huntID, int id) {
     char treasureFile[PATH_SIZE], tempFile[PATH_SIZE];
@@ -155,13 +184,13 @@ void removeTreasure(const char *huntID, int id) {
 
     int fd = open(treasureFile, O_RDONLY);
     if (fd == -1) {
-        perror("open");
+        perror("Error while opening the treasure file!\n");
         return;
     }
 
-    int tempFd = open(tempFile, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+    int tempFd = open(tempFile, O_WRONLY | O_CREAT | O_TRUNC, 0777); // temporary file that will replace the original one 
     if (tempFd == -1) {
-        perror("open temp");
+        perror("Error while opening the temporary file!\n");
         close(fd);
         return;
     }
@@ -172,7 +201,12 @@ void removeTreasure(const char *huntID, int id) {
         if (t.id != id) {
             write(tempFd, &t, sizeof(Treasure));
         } else {
-            removed = 1;
+            removed = 1; //treasure removed successfully
+
+	    // call log function
+	    char logEntry[PATH_SIZE];
+	    snprintf(logEntry, sizeof(logEntry), "Removed treasure ID %d from the hunt %s", id, huntID);
+	    addLog(huntID, logEntry);
         }
     }
 
@@ -181,11 +215,13 @@ void removeTreasure(const char *huntID, int id) {
 
     if (removed) {
         rename(tempFile, treasureFile);
-        printf("Treasure with ID %d removed.\n", id);
+        printf("Treasure with ID %d removed successfully!\n", id);
     } else {
         remove(tempFile);
-        printf("Treasure with ID %d not found.\n", id);
+        printf("Treasure with ID %d not found!\n", id);
     }
+
+   
 }
 
 void removeHunt(const char *huntID) {
@@ -227,7 +263,7 @@ void removeHunt(const char *huntID) {
         exit(1);
     }
 
-    printf("The treasure hunt %s was removed succesfully\n", huntID);
+    printf("Hunt '%s' was removed succesfully!\n", huntID);
 }
 
 int main(int argc, char *argv[]) {
@@ -283,7 +319,7 @@ int main(int argc, char *argv[]) {
         removeHunt(argv[2]);
     }
     else {
-        printf("You've entered an unknown command\n");
+        printf("You've entered an unknown command!\n");
     }
 
     return 0;
