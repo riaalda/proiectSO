@@ -8,7 +8,9 @@
 #include <errno.h>
 
 
-#define CMD_FILE "/tmp/treasure_command.txt" //hub writes commands to .txt
+#define CMD_FILE "monitorCommands.txt" // hub writes commands to .txt
+//putea fi si un "/tmp/treasure_command.txt" - temporar
+
 #define MAX_CMD 256 //user input max size
 
 pid_t monitor_pid = -1; // to send signals
@@ -76,7 +78,7 @@ int main() {
     sigaction(SIGCHLD, &sa, NULL);
 
     while (1) {
-        printf("hub > "); // prompt
+        printf("hub : "); // prompt
         fflush(stdout);
 
         if (!fgets(input, sizeof(input), stdin)) break; // input from user 
