@@ -49,8 +49,9 @@ void start_monitor() {
     }
 
     if (monitor_pid == 0) {
-        execl("./monitor", "./monitor", NULL); // changes the child's code to ./monitor
-        perror("Failed to start monitor");
+        //printf("Child: trying to execl ./monitor...\n");
+        execl("./monitor", "monitor", NULL); // changes the child's code to ./monitor
+        perror("Failed to start monitor from child process");
         exit(1);
     }
     else {
