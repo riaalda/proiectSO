@@ -50,6 +50,14 @@ void start_monitor() {
 
     if (monitor_pid == 0) {
         //printf("Child: trying to execl ./monitor...\n");
+
+        /*
+        int null_fd = open("/dev/null", O_RDONLY);
+        if (null_fd >= 0) {
+          dup2(null_fd, STDIN_FILENO); // redir stdin
+          close(null_fd);
+      } */
+
         execl("./monitor", "monitor", NULL); // changes the child's code to ./monitor
         perror("Failed to start monitor from child process");
         exit(1);
