@@ -1,0 +1,7 @@
+﻿  monitor.c
+C:\Users\aldar\source\repos\proiectSO\proiectSO\monitor.c(5,10): error C1083: Cannot open include file: 'unistd.h': No such file or directory
+  treasure_hub.c
+C:\Users\aldar\source\repos\proiectSO\proiectSO\treasure_hub.c(4,10): error C1083: Cannot open include file: 'unistd.h': No such file or directory
+  treasure_manager.c
+C:\Users\aldar\source\repos\proiectSO\proiectSO\treasure_manager.c(4,10): error C1083: Cannot open include file: 'unistd.h': No such file or directory
+  Generating Code...
