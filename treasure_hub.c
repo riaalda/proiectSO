@@ -16,12 +16,17 @@
 pid_t monitor_pid = -1; // to send signals
 int monitor_alive = 0;  // flag ->1 ruleaza, 0 oprit
 
+int monitor_pipe[2]; // 0 read, 1 write
+int waiting_monitor_exit = 0; // sa blochez comenzi pt stop_monitor
+
+
 // handler activ cand monitor moare
 void sigchld_handler(int signum) {
     int status;
     waitpid(monitor_pid, &status, 0); //asteapta
     printf("Monitor process terminated with code %d!\n", WEXITSTATUS(status));
     monitor_alive = 0; // monitor oprit
+    waiting_monitor_exit = 0;  // primeste comenzi
 }
 
 // write command to file, monitor citeste
@@ -42,33 +47,54 @@ void start_monitor() {
         return;
     }
 
+    if (pipe(monitor_pipe) == -1) {
+        perror("Error at creating a pipe for monitor!");
+        exit(1);
+    }
+
     monitor_pid = fork(); // create child and verifies
     if (monitor_pid == -1) {
         perror("Error: Failed to fork monitor!");
         exit(1);
     }
 
-    if (monitor_pid == 0) {//cod fiu
-        //printf("Child: trying to execl ./monitor...\n");
+    if (monitor_pid == 0) {//cod fiu(monitor)
 
-        /*
-        int null_fd = open("/dev/null", O_RDONLY);
-        if (null_fd >= 0) {
-          dup2(null_fd, STDIN_FILENO); // redir stdin
-          close(null_fd);
-      } */
+        close(monitor_pipe[0]); // inchide capat citire
+        dup2(monitor_pipe[1], STDOUT_FILENO); // stdout merge in pipe
+        close(monitor_pipe[1]);
 
         execl("./monitor", "monitor", NULL); // changes the child's code to ./monitor
         // inlocuieste procesul cu program
-
-        perror("Failed to start monitor from child process!");
+        perror("Monitor execution failed!\n");
         exit(1);
+
     }
     else {
+        close(monitor_pipe[1]); // inchide capat scriere
         monitor_alive = 1;
         printf("Monitor started with PID %d\n", monitor_pid);
     }
 }
+
+void read_monitor_output() { //cit date din pipe[0], afis pe ecran
+    if (!monitor_alive) {
+        printf(">>>>>>>>>>>>>>> Output from monitor: <<<<<<<<<<<<<<<\n(none — monitor is not running)\n\n");
+        return;
+    }
+
+
+    char buffer[256];
+    int n;
+    printf(">>>>>>>>>>>>>>> Output from monitor: <<<<<<<<<<<<<<<\n");
+    while ((n = read(monitor_pipe[0], buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[n] = '\0';
+        printf("%s", buffer);
+        if (n < sizeof(buffer) - 1) break; // iesire
+    }
+    printf("\n");
+}
+
 
 // sends signals to monitor (process)
 void send_signal(int sig) {
@@ -97,6 +123,12 @@ int main() {
         if (!fgets(input, sizeof(input), stdin)) break; // input from user
         input[strcspn(input, "\n")] = 0; // to delete the newline character
 
+        if (waiting_monitor_exit) {
+            printf("Monitor is shutting down... Please wait!\n");
+            continue;
+        } // blocare pana monitor se opreste
+
+
         if (strcmp(input, "exit") == 0) {
             if (monitor_alive) {
                 // nu permite iesirea, cere oprirea monitorului ca sa nu ajunga in starea de zombie
@@ -112,15 +144,17 @@ int main() {
         else if (strcmp(input, "stop_monitor") == 0) {
             write_command("stop");
             send_signal(SIGUSR2); // writes stop in file then sends SIGUSR2 to stop monitor
+            waiting_monitor_exit = 1; // blocheaza comenzi
         }
         else if (strncmp(input, "list_hunts", 10) == 0 ||
             strncmp(input, "list_treasures", 14) == 0 ||
-            strncmp(input, "view_treasure", 13) == 0)
+            strncmp(input, "view_treasure", 13) == 0) // strncmp pt ca pot avea argumente dupa ele
         {
-            // strncmp pt ca pot avea argumente dupa ele
+
             write_command(input);
             send_signal(SIGUSR1); // notifies the monitor to read
             // printf("Command sent to monitor.\n");
+            read_monitor_output();
         }
         else {
             printf("Entered an unknown command!\n");
