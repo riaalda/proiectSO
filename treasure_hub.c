@@ -156,6 +156,7 @@ int main() {
 
             write_command("stop");
             send_signal(SIGUSR2); // writes stop in file then sends SIGUSR2 to stop monitor
+            read_monitor_output();
             waiting_monitor_exit = 1; // blocheaza comenzi
         }
         else if (strncmp(input, "list_hunts", 10) == 0 ||
