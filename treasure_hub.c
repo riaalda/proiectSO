@@ -90,10 +90,11 @@ int main() {
     // monitor moare, sigchld e trimis la hub
 
     while (1) {
+        usleep(2000);
         printf("hub : "); // prompt
         fflush(stdout); //afis imediata
 
-        if (!fgets(input, sizeof(input), stdin)) break; // input from user 
+        if (!fgets(input, sizeof(input), stdin)) break; // input from user
         input[strcspn(input, "\n")] = 0; // to delete the newline character
 
         if (strcmp(input, "exit") == 0) {

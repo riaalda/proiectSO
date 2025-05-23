@@ -11,7 +11,7 @@
 
 #define USERNAME_SIZE 50
 #define CLUE_SIZE 256
-#define PATH_SIZE 256
+#define PATH_SIZE 1024
 
 typedef struct {
     int id;
@@ -303,7 +303,7 @@ void removeTreasure(const char* huntID, int id) {
         return;
     }
 
-    int tempFd = open(tempFile, O_WRONLY | O_CREAT | O_TRUNC, 0777); // temporary file that will replace the original one 
+    int tempFd = open(tempFile, O_WRONLY | O_CREAT | O_TRUNC, 0777); // temporary file that will replace the original one
     if (tempFd == -1) {
         perror("Error while opening the temporary file!\n");
         close(fd);
@@ -451,7 +451,24 @@ int main(int argc, char* argv[]) {
             // for . and ..
             struct stat st;
             if (stat(entry->d_name, &st) == 0 && S_ISDIR(st.st_mode)) {
-                printf(" - %s\n", entry->d_name);
+
+                // numara treasures din hunt
+                char treasureFile[PATH_SIZE];
+                snprintf(treasureFile, sizeof(treasureFile), "%s/%s_treasures.dat", entry->d_name, entry->d_name);
+
+                int fd = open(treasureFile, O_RDONLY);
+                int count = 0;
+
+                if (fd != -1) {
+                    Treasure t;
+                    while (read(fd, &t, sizeof(Treasure)) == sizeof(Treasure)) {
+                        count++;
+                    }
+                    close(fd);
+                }
+
+
+                printf(" - %s ---> %d treasures\n", entry->d_name, count);
             }
         }
 

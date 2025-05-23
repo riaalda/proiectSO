@@ -62,7 +62,12 @@ void execute_command()
     if (strncmp(buffer, "list_treasures", 14) == 0)
     {
         char hunt_id[64];
-        sscanf(buffer, "list_treasures %s", hunt_id);
+        //sscanf(buffer, "list_treasures %s", hunt_id);
+
+        if (sscanf(buffer, "list_treasures %s", hunt_id) != 1) {
+            printf("[Monitor] Invalid usage: <list_treasures> requires <hunt_id>\n");
+            return;
+        }
 
         pid_t pid = fork();
         if (pid == 0)
@@ -82,7 +87,7 @@ void execute_command()
         int tid;
 
         if (sscanf(buffer, "view_treasure %s %d", hunt_id, &tid) != 2) {
-            printf("[Monitor] Invalid usage: view_treasure requires <hunt_id> and <treasure_id>\n");
+            printf("[Monitor] Invalid usage: <view_treasure> requires <hunt_id> and <treasure_id>\n");
             return;
         }
 
@@ -101,6 +106,12 @@ void execute_command()
     }
 
     else if (strncmp(buffer, "list_hunts", 10) == 0) {
+
+        if (strcmp(buffer, "list_hunts") != 0) {
+            printf("[Monitor] Invalid usage: <list_hunts> command should NOT be followed by other arguments!\n");
+            return;
+        }
+
         pid_t pid = fork();
         if (pid == 0) {
             execlp("./treasure_manager", "treasure_manager", "--hunts", NULL);
@@ -112,7 +123,7 @@ void execute_command()
         }
     }
 
-    else if (strncmp(buffer, "stop", 4) == 0)
+    else if (strncmp(buffer, "stop_monitor", 12) == 0)
     {
         printf("[Monitor] Stop command received.\n");
         stop_requested = 1; // set the flag
@@ -140,7 +151,7 @@ int main()
     }
 
     printf("[Monitor] Stopping...\n");
-    usleep(2000);  // 2sec
+    //usleep(2000);  // 2sec
     printf("[Monitor] Exit done!\n");
     return 0;
 }
