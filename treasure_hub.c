@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <dirent.h>
 
 
 #define CMD_FILE "monitorCommands.txt" // hub writes commands to .txt
@@ -23,11 +24,17 @@ int waiting_monitor_exit = 0; // sa blochez comenzi pt stop_monitor
 // handler activ cand monitor moare
 void sigchld_handler(int signum) {
     int status;
-    waitpid(monitor_pid, &status, 0); //asteapta
-    printf("Monitor process terminated with code %d!\n", WEXITSTATUS(status));
-    monitor_alive = 0; // monitor oprit
-    waiting_monitor_exit = 0;  // primeste comenzi
+    //waitpid(monitor_pid, &status, 0); //asteapta
+
+    pid_t pid = waitpid(-1, &status, WNOHANG);
+
+    if (pid == monitor_pid) {
+        printf("Monitor process terminated with code %d!\n", WEXITSTATUS(status));
+        monitor_alive = 0;
+        waiting_monitor_exit = 0;
+    }
 }
+
 
 // write command to file, monitor citeste
 void write_command(const char* command) {
@@ -156,9 +163,66 @@ int main() {
             // printf("Command sent to monitor.\n");
             read_monitor_output();
         }
+
+        else if (strcmp(input, "calculate_score") == 0) {
+            DIR* dir = opendir(".");
+            if (!dir) {
+                perror("Failed to open current directory!\n");
+                continue;
+            }
+
+            struct dirent* entry;
+            while ((entry = readdir(dir)) != NULL) { //cit urm elem din ac folder
+                if (entry->d_type == DT_DIR &&
+                    strcmp(entry->d_name, ".") != 0 &&
+                    strcmp(entry->d_name, "..") != 0) {
+
+                    int pfd[2];
+                    if (pipe(pfd) == -1) {
+                        perror("Pipe failed!\n");
+                        continue;
+                    }
+
+                    pid_t pid = fork();
+                    if (pid == -1) {
+                        perror("Fork failed!\n");
+                        close(pfd[0]); close(pfd[1]);
+                        continue;
+                    }
+
+                    if (pid == 0) { // copil
+                        close(pfd[0]);
+                        dup2(pfd[1], STDOUT_FILENO);
+                        close(pfd[1]);
+
+                        execl("./calculate_score", "calculate_score", entry->d_name, NULL);
+                        perror("Exec failed!\n");
+                        exit(1);
+                    }
+                    else { // parinte
+
+                        close(pfd[1]);
+                        char buffer[256];
+                        int n;
+                        printf("\n>>> Score output for hunt: %s\n", entry->d_name);
+                        while ((n = read(pfd[0], buffer, sizeof(buffer) - 1)) > 0)
+                        {
+                            buffer[n] = '\0';
+                            printf("%s", buffer);
+                        }
+
+                        close(pfd[0]);
+                        waitpid(pid, NULL, 0);
+                    }
+                }
+            }
+            closedir(dir);
+        }
+
         else {
             printf("Entered an unknown command!\n");
         }
+
     }
 
     return 0;
