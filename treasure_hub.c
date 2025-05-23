@@ -149,6 +149,11 @@ int main() {
             start_monitor();
         }
         else if (strcmp(input, "stop_monitor") == 0) {
+            if (!monitor_alive) {
+                printf("Monitor is not running! Enter the command <start_monitor> first!\n");
+                continue;
+            }
+
             write_command("stop");
             send_signal(SIGUSR2); // writes stop in file then sends SIGUSR2 to stop monitor
             waiting_monitor_exit = 1; // blocheaza comenzi
