@@ -135,16 +135,26 @@ int main() {
             continue;
         } // blocare pana monitor se opreste
 
-
-        if (strcmp(input, "exit") == 0) {
+        else if (strcmp(input, "exit") == 0) {
             if (monitor_alive) {
-                // nu permite iesirea, cere oprirea monitorului ca sa nu ajunga in starea de zombie
-                printf("Warning: Monitor is still running! Usethe command <stop_monitor> first!\n");
+                if (waiting_monitor_exit) {
+                    int status;
+                    while (waitpid(monitor_pid, &status, WNOHANG) == 0) {
+                        printf("Waiting for monitor to shut down...\n");
+                        sleep(1);
+                    }
+                    printf("Monitor process terminated with code %d!\n", WEXITSTATUS(status));
+                    monitor_alive = 0;
+                    waiting_monitor_exit = 0;
+                }
+                else {
+                    printf("Warning: Monitor is still running! Use the command <stop_monitor> first!\n");
+                    continue;
+                }
             }
-            else {
-                break;
-            }
+            break;
         }
+
         else if (strcmp(input, "start_monitor") == 0) {
             start_monitor();
         }
