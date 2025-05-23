@@ -20,15 +20,17 @@ int monitor_alive = 0;  // flag ->1 ruleaza, 0 oprit
 int monitor_pipe[2]; // 0 read, 1 write
 int waiting_monitor_exit = 0; // sa blochez comenzi pt stop_monitor
 
+void read_monitor_output();
+
 
 // handler activ cand monitor moare
 void sigchld_handler(int signum) {
     int status;
-    //waitpid(monitor_pid, &status, 0); //asteapta
-
     pid_t pid = waitpid(-1, &status, WNOHANG);
 
     if (pid == monitor_pid) {
+        read_monitor_output();
+
         printf("Monitor process terminated with code %d!\n", WEXITSTATUS(status));
         monitor_alive = 0;
         waiting_monitor_exit = 0;
@@ -131,8 +133,13 @@ int main() {
         input[strcspn(input, "\n")] = 0; // to delete the newline character
 
         if (waiting_monitor_exit) {
-            printf("Monitor is shutting down... Please wait!\n");
-            continue;
+            if (!monitor_alive) {
+                waiting_monitor_exit = 0; // Resetare
+            }
+            else {
+                printf("Monitor is shutting down... Please wait!\n");
+                continue;
+            }
         } // blocare pana monitor se opreste
 
         else if (strcmp(input, "exit") == 0) {
@@ -166,13 +173,18 @@ int main() {
 
             write_command("stop");
             send_signal(SIGUSR2); // writes stop in file then sends SIGUSR2 to stop monitor
-            read_monitor_output();
+            //read_monitor_output();
             waiting_monitor_exit = 1; // blocheaza comenzi
         }
         else if (strncmp(input, "list_hunts", 10) == 0 ||
             strncmp(input, "list_treasures", 14) == 0 ||
             strncmp(input, "view_treasure", 13) == 0) // strncmp pt ca pot avea argumente dupa ele
         {
+
+            if (!monitor_alive) {
+                printf("Monitor is not running! Enter the command <start_monitor> first!\n");
+                continue;
+            }
 
             write_command(input);
             send_signal(SIGUSR1); // notifies the monitor to read
